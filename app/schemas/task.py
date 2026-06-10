@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.task import TaskPriority
 
@@ -21,10 +21,29 @@ class TaskCreate(BaseModel):
 
     title: str = Field(min_length=2, max_length=200)
     description: str | None = None
-    category_id: int | None = None
+    category_id: int | None = Field(ge=1, description="ID категории должен быть положительным")
     priority: TaskPriority = TaskPriority.medium
     due_date: datetime | None = None
-    estimated_minutes: int | None = Field(default=None, ge=1)
+    estimated_minutes: int | None = Field(default=None, ge=1, le=1440)
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Название задачи не может быть пустым")
+        if v.strip() != v:
+            raise ValueError("Название не должно содержать лишних пробелов")
+        if len(v.strip()) < 2:
+            raise ValueError("Название должно содержать минимум 2 символа")
+        return v.strip()
+
+    @field_validator("due_date")
+    @classmethod
+    def validate_due_date(cls, v: datetime | None) -> datetime | None:
+        if v and v < datetime.now():
+            raise ValueError("Дата выполнения не может быть раньше текущей")
+        return v
+
 
 
 class TaskUpdate(BaseModel):
