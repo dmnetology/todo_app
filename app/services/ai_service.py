@@ -98,7 +98,7 @@ async def llm_prediction(
     tasks = base_query.all()
 
     history = "\n".join(
-        f"{task.title} -> {task.actual_minutes} minutes"
+        f"{task.title} (cat:{task.category_id}) -> {task.actual_minutes} minutes"
         for task in tasks
     )
 
