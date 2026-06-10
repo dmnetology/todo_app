@@ -11,7 +11,6 @@ from app.schemas.task import (
     TaskStatusUpdate,
     TaskEstimateResponse,
 )
-from app.services.ai_service import predict_task_duration
 from app.services.task_service import (
     create_task,
     get_tasks,
@@ -21,6 +20,7 @@ from app.services.task_service import (
     update_task_status,
 )
 
+from app.services.ai_service import predict_task_duration
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
@@ -82,7 +82,7 @@ def read_tasks(
     )
 
 @router.get("/ai/estimate", response_model=TaskEstimateResponse)
-def estimate_task_time(
+async def estimate_task_time(
     title: str = Query(..., min_length=1),
     category_id: int = Query(..., ge=1),
     current_user: User = Depends(get_current_user),
@@ -99,14 +99,14 @@ def estimate_task_time(
     - если данных нет совсем, возвращается значение по умолчанию.
     """
 
-    predicted_minutes = predict_task_duration(
+    predicted_minutes, source = await predict_task_duration(
         db=db,
         user_id=current_user.id,
         title=title,
         category_id=category_id,
     )
 
-    return TaskEstimateResponse(predicted_minutes=predicted_minutes)
+    return TaskEstimateResponse(predicted_minutes=predicted_minutes, source=source)
 
 
 @router.get("/{task_id}", response_model=TaskRead)

@@ -22,6 +22,8 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30 # Время жизни access-токена в минутах
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080 # Время жизни refresh-токена в минутах
-
+    
+    OPENROUTER_API_KEY: str | None = None # API ключ к openrouter ai
+    DEEPSEEK_MODEL: str | None = None # модель
 
 settings = Settings()

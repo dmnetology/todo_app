@@ -96,3 +96,4 @@ class TaskEstimateResponse(BaseModel):
     """
 
     predicted_minutes: int
+    source: str
