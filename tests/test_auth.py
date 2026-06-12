@@ -1,4 +1,20 @@
-def test_register_user(client):
+import pytest
+
+
+@pytest.mark.parametrize(
+    "first_name,last_name,login,password",
+    [
+        ("Petr", "Petrov", "petr", "password123"),
+        ("Anna", "Smirnova", "anna", "password456"),
+    ],
+)
+def test_register_user(
+    client,
+    first_name,
+    last_name,
+    login,
+    password,
+):
     """
     Тест регистрации пользователя.
 
@@ -10,15 +26,15 @@ def test_register_user(client):
     response = client.post(
         "/auth/register",
         json={
-            "first_name": "Petr",
-            "last_name": "Petrov",
-            "login": "petr",
-            "password": "password123",
+            "first_name": first_name,
+            "last_name": last_name,
+            "login": login,
+            "password": password,
         },
     )
 
     assert response.status_code == 201
-    assert response.json()["login"] == "petr"
+    assert response.json()["login"] == login
 
 
 def test_register_duplicate_login(client):
@@ -43,45 +59,24 @@ def test_register_duplicate_login(client):
     assert response.status_code == 409
 
 
-def test_login_success(client):
+@pytest.mark.parametrize(
+    "password,expected_status",
+    [
+        ("password123", 200),
+        ("wrong_password", 401),
+    ],
+)
+def test_login(
+    client,
+    password,
+    expected_status,
+):
     """
-    Тест успешной авторизации.
+    Тест авторизации пользователя.
 
-    Сценарий:
-    1. Регистрируем пользователя.
-    2. Отправляем корректные данные для входа.
-    3. Проверяем, что сервер возвращает access_token.
-    """
-    client.post(
-        "/auth/register",
-        json={
-            "first_name": "Anna",
-            "last_name": "Smirnova",
-            "login": "anna",
-            "password": "password123",
-        },
-    )
-
-    response = client.post(
-        "/auth/login",
-        json={
-            "login": "anna",
-            "password": "password123",
-        },
-    )
-
-    assert response.status_code == 200
-    assert "access_token" in response.json()
-
-
-def test_login_wrong_password(client):
-    """
-    Тест неуспешной авторизации.
-
-    Сценарий:
-    1. Регистрируем пользователя.
-    2. Пытаемся войти с неправильным паролем.
-    3. Ожидаем статус 401 Unauthorized.
+    Сценарии:
+    - успешный вход;
+    - вход с неправильным паролем.
     """
     client.post(
         "/auth/register",
@@ -97,11 +92,14 @@ def test_login_wrong_password(client):
         "/auth/login",
         json={
             "login": "anna",
-            "password": "wrong_password",
+            "password": password,
         },
     )
 
-    assert response.status_code == 401
+    assert response.status_code == expected_status
+
+    if expected_status == 200:
+        assert "access_token" in response.json()
 
 
 def test_change_password(client, auth_headers):
