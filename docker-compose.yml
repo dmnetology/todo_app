@@ -11,6 +11,8 @@ services:
       - "5432:5432"
     volumes:
       - todo_postgres_data:/var/lib/postgresql/data
+    networks:
+      - todo_network
 
   api:
     build: .
@@ -22,8 +24,14 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
+    networks:
+      - todo_network
     depends_on:
       - db
 
 volumes:
   todo_postgres_data:
+
+networks:
+  todo_network:
+    driver: bridge

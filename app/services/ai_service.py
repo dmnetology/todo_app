@@ -1,15 +1,18 @@
 from sqlalchemy.orm import Session
-
 from rapidfuzz import fuzz
+from openai import OpenAI
 
 from app.models.task import Task
+from app.core.config import settings
 
 
-def normalize_title(title: str) -> str:
-    return " ".join(title.strip().lower().split())
+client = OpenAI(
+    api_key=settings.OPENROUTER_API_KEY,
+    base_url="https://openrouter.ai/api/v1"
+)
 
 
-def predict_task_duration(
+def heuristic_prediction(
     db: Session,
     user_id: int,
     title: str,
@@ -26,7 +29,7 @@ def predict_task_duration(
     5. Если данных нет вообще — возвращаем 60.
     """
 
-    normalized_title = normalize_title(title)
+    normalized_title = " ".join(title.strip().lower().split())
 
     base_query = db.query(Task).filter(
         Task.owner_id == user_id,
@@ -43,7 +46,7 @@ def predict_task_duration(
     exact_tasks = [
         task for task in tasks
         if task.category_id == category_id
-        and normalize_title(task.title) == normalized_title
+        and " ".join(task.title.strip().lower().split()) == normalized_title
     ]
 
     if exact_tasks:
@@ -54,7 +57,7 @@ def predict_task_duration(
     similar_tasks = [
         task for task in tasks
         if task.category_id == category_id
-        and fuzz.ratio(normalize_title(task.title), normalized_title) >= 85
+        and fuzz.ratio(" ".join(task.title.strip().lower().split()), normalized_title) >= 85
     ]
 
     if similar_tasks:
@@ -74,3 +77,83 @@ def predict_task_duration(
     # 4. Общая статистика пользователя
     total = sum(task.actual_minutes for task in tasks)
     return round(total / len(tasks))
+
+
+async def llm_prediction(
+    db: Session,
+    user_id: int,
+    title: str,
+    category_id: int,
+) -> int:
+    """
+    Прогнозирует время выполнения задачи через DeepSeek.
+    """
+
+    base_query = db.query(Task).filter(
+        Task.owner_id == user_id,
+        Task.is_completed.is_(True),
+        Task.actual_minutes.isnot(None),
+    ).order_by(Task.id.desc()).limit(10)
+
+    tasks = base_query.all()
+
+    history = "\n".join(
+        f"{task.title} (cat:{task.category_id}) -> {task.actual_minutes} minutes"
+        for task in tasks
+    )
+
+    prompt = f"""You are a task estimation assistant.
+
+User completed tasks:
+
+{history}
+
+New task:
+Title: {title}
+Category ID: {category_id}
+
+Return only integer number of minutes.
+
+Example:
+45"""
+
+    response = client.chat.completions.create(
+        model="deepseek/deepseek-chat",
+        messages=[{"role": "user", "content": prompt}],
+        timeout=30
+    )
+
+    result = response.choices[0].message.content.strip()
+    numbers = re.findall(r"\d+", result)
+
+    return int(numbers[0]) if numbers else 60
+
+
+async def predict_task_duration(
+    db: Session,
+    user_id: int,
+    title: str,
+    category_id: int,
+):
+    """
+    Сначала используем AI-сервис.
+    При ошибке используем локальный алгоритм.
+    """
+
+    try:
+        predicted_minutes = await llm_prediction(
+            db=db,
+            user_id=user_id,
+            title=title,
+            category_id=category_id,
+        )
+
+        return predicted_minutes, "llm"
+
+    except Exception:
+        return heuristic_prediction(
+            db=db,
+            user_id=user_id,
+            title=title,
+            category_id=category_id,
+        ), "heuristic"
