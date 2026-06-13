@@ -11,7 +11,8 @@ Backend API и Frontend для приложения управления зад�
     - управления категориями;
     - создания, редактирования, удаления и просмотра задач;
     - изменения статуса задач;
-    - получения прогноза времени выполнения задачи;
+    - получения прогноза времени выполнения задачи с использованием **DeepSeek** (через OpenRouter);
+    - экспорта и импорта задач на **Яндекс.Диск**;
     - проверки состояния приложения через health-check.
 - **Интерактивного пользовательского интерфейса** (Frontend), который позволяет:
     - регистрироваться и авторизоваться;
@@ -31,6 +32,8 @@ Backend API и Frontend для приложения управления зад�
 - JWT
 - Docker
 - Docker Compose
+- DeepSeek (LLM через OpenRouter API)
+- Яндекс.Диск API (для экспорта/импорта задач)
 
 ### Frontend
 - React
@@ -91,6 +94,9 @@ Backend API и Frontend для приложения управления зад�
     ALGORITHM=HS256
     ACCESS_TOKEN_EXPIRE_MINUTES=30
     REFRESH_TOKEN_EXPIRE_MINUTES=10080
+    OPENROUTER_API_KEY=sk-or-v1-xxx
+    DEEPSEEK_MODEL=deepseek/deepseek-chat
+    YANDEX_DISK_TOKEN=xxx
 
 ### Назначение
 
@@ -99,7 +105,10 @@ Backend API и Frontend для приложения управления зад�
 - `SECRET_KEY` — секретный ключ для подписи JWT (создай свой);
 - `ALGORITHM` — алгоритм подписи токенов;
 - `ACCESS_TOKEN_EXPIRE_MINUTES` — время жизни access-токена;
-- `REFRESH_TOKEN_EXPIRE_MINUTES` — время жизни refresh-токена.
+- `REFRESH_TOKEN_EXPIRE_MINUTES` — время жизни refresh-токена;
+- `OPENROUTER_API_KEY` — API ключ для доступа к DeepSeek через OpenRouter;
+- `DEEPSEEK_MODEL` — модель DeepSeek (по умолчанию `deepseek/deepseek-chat`);
+- `YANDEX_DISK_TOKEN` — OAuth токен для доступа к Яндекс.Диску.
 
 ## Запуск проекта
 
@@ -110,11 +119,11 @@ Backend API и Frontend для приложения управления зад�
 
 ### 1. Запуск Backend
 
-### Через Docker
+#### Через Docker
 
     docker compose up --build
 
-### Применение миграций
+#### Применение миграций
 
     docker compose exec api alembic upgrade head
 
@@ -220,7 +229,7 @@ http://localhost:5173
 
     PATCH /tasks/{task_id}/status
 
-### Прогноз времени выполнения задачи
+### Прогноз времени выполнения задачи (AI)
 
     GET /tasks/ai/estimate
 
@@ -229,74 +238,43 @@ Query-параметры:
 - `title` — обязательный;
 - `category_id` — обязательный.
 
-## Избранное
-    - создан маршрут /favourites;
-    - отображается список задач, добавленных в избранное;
-    - реализовано удаление задачи из избранного;
-    - состояние избранного сохраняется в localStorage.
+**Как работает:**
+1. Сначала используется **DeepSeek** (LLM) для прогноза на основе истории выполненных задач пользователя.
+2. При ошибке (нет сети, проблемах с API) автоматически используется эвристический алгоритм:
+   - точное совпадение по названию и категории;
+   - похожие названия (fuzzy-поиск);
+   - статистика по категории;
+   - общая статистика пользователя;
+   - значение по умолчанию (60 минут).
 
+DeepSeek интегрирован через **OpenRouter**.
 
-## Оптимизация frontend (для повышения производительности)
-    - React.memo;
-    - useMemo;
-    - useCallback;
-    - React.lazy;
-    - Suspense.
+## Синхронизация с Яндекс.Диском
 
-## Progressive Web App и Service Worker
-    - кешируются основные ресурсы приложения;
-    - реализованы события install, fetch и activate;
-    - очищаются устаревшие версии кеша;
-    - приложение может работать в офлайн-режиме;
-    - при отсутствии сети выводится уведомление о переходе в офлайн-режим;
-    - используется кеш для повторной загрузки доступных ресурсов.
+Все эндпоинты синхронизации требуют авторизации.
 
-## Индикаторы состояния
-    - отображение имени пользователя после успешной авторизации;
-    - отображение кнопки «Войти» при отсутствии авторизации;
-    - динамический индикатор статуса сети;
-    - уведомление о потере соединения;
-    - уведомление о восстановлении соединения.
+### Экспорт задач
 
-## Swagger / OpenAPI
+    POST /sync/export
 
-После запуска проекта документация доступна по адресу:
+Экспортирует все задачи текущего пользователя на Яндекс.Диск в файл `disk:/todo_tasks.json`.
 
-- `http://localhost:8000/docs`
+### Импорт задач
 
+    GET /sync/import
 
-Для защищённых эндпоинтов используй кнопку **Authorize** и вставляй:
+Импортирует задачи с Яндекс.Диска. **Полностью заменяет** все текущие задачи пользователя на задачи из файла.
 
-    Bearer <access_token>
-
-## Миграции
-
-Создать миграцию:
-
-    docker compose exec api alembic revision --autogenerate -m "message"
-
-Применить миграции:
-
-    docker compose exec api alembic upgrade head
-
-Откатить миграцию:
-
-    docker compose exec api alembic downgrade -1
-
-## Тесты
-
-backend: `pytest или pytest --cov=app --cov-report=term-missing`
-
-frontend:
-- Jest;
-- React Testing Library;
-- Lighthouse для проверки производительности и доступности.
-    
-для запуска:
-- из корня проекта: `cd frontend`
-- далее: `npm test`
-
-## Развертывание
-    - Создан production build с помощью npm run build;
-    - приложение развернуто на Vercel через GitHub;
-    - приложение доступно по публичной ссылке.
+**Формат файла:**
+```json
+[
+  {
+    "title": "Название задачи",
+    "description": "Описание",
+    "priority": "high/medium/low",
+    "is_completed": false,
+    "estimated_minutes": 60,
+    "actual_minutes": null,
+    "category_id": 1
+  }
+]

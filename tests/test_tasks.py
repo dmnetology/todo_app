@@ -1,5 +1,8 @@
 import uuid
 
+import pytest
+
+
 def create_category(client, headers, name=None):
     """
     Создаёт категорию и возвращает её id.
@@ -46,21 +49,67 @@ def create_task(
     return response
 
 
-def test_create_task(client, auth_headers):
+# Данные для тестирования создания задач
+CREATE_TASK_TEST_DATA = [
+    ("Сделать проект", "high", 120),      # высший приоритет, 2 часа
+    ("Подготовить отчет", "medium", 90),  # средний приоритет, 1.5 часа
+    ("Написать документацию", "low", 180), # низкий приоритет, 3 часа
+    ("Провести код-ревью", "high", 60),    # высший приоритет, 1 час
+]
+
+# Данные для тестирования обновления задач
+UPDATE_TASK_TEST_DATA = [
+    ("Обновленная задача", "medium"),      # новый заголовок и средний приоритет
+    ("Срочная задача", "high"),            # новый заголовок и высокий приоритет
+    ("Фоновая задача", "low"),             # новый заголовок и низкий приоритет
+]
+
+# Данные для тестирования статуса задач
+TASK_STATUS_TEST_DATA = [
+    (True, 90, True, 90),    # выполнена, 90 минут
+    (True, 120, True, 120),  # выполнена, 120 минут
+    (False, 0, False, None), # не выполнена
+]
+
+# Данные для фильтрации задач
+FILTER_TASKS_TEST_DATA = [
+    ("true", 1, True),    # фильтр по выполненным
+    ("false", 0, False),  # фильтр по невыполненным
+]
+
+# Данные для тестирования ошибок валидации
+VALIDATION_ERROR_TEST_DATA = [
+    ("A", "high"),       # слишком короткий заголовок (менее 3 символов)
+    ("", "high"),        # пустой заголовок
+    ("   ", "medium"),   # заголовок из пробелов
+]
+
+
+@pytest.mark.parametrize("title,priority,estimated_minutes", CREATE_TASK_TEST_DATA)
+def test_create_task(client, auth_headers, title, priority, estimated_minutes):
     """
     Тест создания задачи.
 
     Сценарий:
     1. Создаём категорию.
     2. Создаём задачу, привязанную к этой категории.
-    3. Проверяем статус 201 и корректное название задачи.
+    3. Проверяем статус 201 и корректные атрибуты задачи.
     """
     category_id = create_category(client, auth_headers)
 
-    response = create_task(client, auth_headers, category_id)
+    response = create_task(
+        client,
+        auth_headers,
+        category_id,
+        title=title,
+        priority=priority,
+        estimated_minutes=estimated_minutes,
+    )
 
     assert response.status_code == 201
-    assert response.json()["title"] == "Сделать проект"
+    assert response.json()["title"] == title
+    assert response.json()["priority"] == priority
+    assert response.json()["estimated_minutes"] == estimated_minutes
 
 
 def test_get_tasks(client, auth_headers):
@@ -99,7 +148,8 @@ def test_get_task_by_id(client, auth_headers):
     assert response.json()["id"] == task_id
 
 
-def test_update_task(client, auth_headers):
+@pytest.mark.parametrize("new_title,new_priority", UPDATE_TASK_TEST_DATA)
+def test_update_task(client, auth_headers, new_title, new_priority):
     """
     Тест обновления задачи.
 
@@ -107,7 +157,7 @@ def test_update_task(client, auth_headers):
     1. Создаём задачу.
     2. Получаем её id.
     3. Отправляем PUT-запрос с новыми данными.
-    4. Проверяем, что title обновился.
+    4. Проверяем, что title и priority обновились.
     """
     created = create_task(client, auth_headers)
     task_id = created.json()["id"]
@@ -116,39 +166,49 @@ def test_update_task(client, auth_headers):
         f"/tasks/{task_id}",
         headers=auth_headers,
         json={
-            "title": "Обновленная задача",
-            "priority": "medium",
+            "title": new_title,
+            "priority": new_priority,
         },
     )
 
     assert response.status_code == 200
-    assert response.json()["title"] == "Обновленная задача"
+    assert response.json()["title"] == new_title
+    assert response.json()["priority"] == new_priority
 
 
-def test_update_task_status(client, auth_headers):
+@pytest.mark.parametrize("is_completed,actual_minutes,expected_completed,expected_actual", TASK_STATUS_TEST_DATA)
+def test_update_task_status(
+    client,
+    auth_headers,
+    is_completed,
+    actual_minutes,
+    expected_completed,
+    expected_actual,
+):
     """
     Тест изменения статуса задачи.
 
     Сценарий:
     1. Создаём задачу.
-    2. Отмечаем её как завершённую.
+    2. Отмечаем её как завершённую/незавершённую.
     3. Проверяем is_completed и actual_minutes.
     """
     created = create_task(client, auth_headers)
     task_id = created.json()["id"]
 
+    payload = {"is_completed": is_completed}
+    if is_completed:
+        payload["actual_minutes"] = actual_minutes
+
     response = client.patch(
         f"/tasks/{task_id}/status",
         headers=auth_headers,
-        json={
-            "is_completed": True,
-            "actual_minutes": 90,
-        },
+        json=payload,
     )
 
     assert response.status_code == 200
-    assert response.json()["is_completed"] is True
-    assert response.json()["actual_minutes"] == 90
+    assert response.json()["is_completed"] == expected_completed
+    assert response.json()["actual_minutes"] == expected_actual
 
 
 def test_delete_task(client, auth_headers):
@@ -182,37 +242,40 @@ def test_task_not_found(client, auth_headers):
     assert response.status_code == 404
 
 
-def test_task_validation_error(client, auth_headers):
+@pytest.mark.parametrize("title,priority", VALIDATION_ERROR_TEST_DATA)
+def test_task_validation_error(client, auth_headers, title, priority):
     """
     Тест ошибки валидации.
 
-    Передаём слишком короткое название задачи и ожидаем 422 Unprocessable Entity.
+    Передаём некорректное название задачи и ожидаем 422 Unprocessable Entity.
     """
     response = client.post(
         "/tasks",
         headers=auth_headers,
         json={
-            "title": "A",
-            "priority": "high",
+            "title": title,
+            "priority": priority,
         },
     )
 
     assert response.status_code == 422
 
 
-def test_filter_tasks_by_status(client, auth_headers):
+@pytest.mark.parametrize("is_completed_param,expected_count,expected_status", FILTER_TASKS_TEST_DATA)
+def test_filter_tasks_by_status(client, auth_headers, is_completed_param, expected_count, expected_status):
     """
     Тест фильтрации задач по статусу.
 
     Сценарий:
     1. Создаём задачу.
     2. Отмечаем её выполненной.
-    3. Запрашиваем только завершённые задачи.
-    4. Проверяем, что в ответе одна выполненная задача.
+    3. Запрашиваем только завершённые/незавершённые задачи.
+    4. Проверяем, что фильтрация работает корректно.
     """
     created = create_task(client, auth_headers)
     task_id = created.json()["id"]
 
+    # Помечаем задачу как выполненную
     client.patch(
         f"/tasks/{task_id}/status",
         headers=auth_headers,
@@ -223,13 +286,14 @@ def test_filter_tasks_by_status(client, auth_headers):
     )
 
     response = client.get(
-        "/tasks?is_completed=true",
+        f"/tasks?is_completed={is_completed_param}",
         headers=auth_headers,
     )
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["is_completed"] is True
+    assert len(response.json()) == expected_count
+    if expected_count > 0:
+        assert response.json()[0]["is_completed"] == expected_status
 
 
 def test_ai_estimate(client, auth_headers):

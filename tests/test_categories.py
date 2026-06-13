@@ -1,4 +1,19 @@
-def test_create_category(client, auth_headers):
+import pytest
+
+
+@pytest.mark.parametrize(
+    "category_name",
+    [
+        "Учеба",
+        "Работа",
+        "Спорт",
+    ],
+)
+def test_create_category(
+    client,
+    auth_headers,
+    category_name,
+):
     """
     Тест создания категории.
 
@@ -12,11 +27,11 @@ def test_create_category(client, auth_headers):
     response = client.post(
         "/categories",
         headers=auth_headers,
-        json={"name": "Учеба"},
+        json={"name": category_name},
     )
 
     assert response.status_code == 201
-    assert response.json()["name"] == "Учеба"
+    assert response.json()["name"] == category_name
 
 
 def test_get_categories(client, auth_headers):

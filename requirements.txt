@@ -16,3 +16,4 @@ pytest-cov==6.0.0
 rapidfuzz
 email-validator
 openai
+httpx

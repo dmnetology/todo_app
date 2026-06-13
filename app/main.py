@@ -5,6 +5,8 @@ from app.api.routes.categories import router as categories_router
 from app.api.routes.tasks import router as tasks_router
 from app.core.config import settings
 
+from app.api.routes.sync import router as sync_router
+
 from fastapi.middleware.cors import CORSMiddleware
 
 # Создаём экземпляр FastAPI-приложения.
@@ -45,10 +47,12 @@ def health_check():
 # Подключаем роутеры всех основных разделов API.
 #
 # Каждый роутер отвечает за отдельную область подзадач:
-# - auth_router    — аутентификация и регистрация;
-# - categories_router — категории задач;
-# - tasks_router   — задачи и прогноз времени.
+# - auth_router - аутентификация и регистрация;
+# - categories_router - категории задач;
+# - tasks_router - задачи и прогноз времени.
+# - sync_router - синхронизация с внешним хранилищем 
 
 app.include_router(auth_router)
 app.include_router(categories_router)
 app.include_router(tasks_router)
+app.include_router(sync_router)

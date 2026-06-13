@@ -30,7 +30,7 @@ router = APIRouter(prefix="/tasks", tags=["Tasks"])
     response_model=TaskRead,
     status_code=status.HTTP_201_CREATED,
 )
-def create_new_task(
+async def create_new_task(
     data: TaskCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -44,7 +44,7 @@ def create_new_task(
     3. Используем сервисный слой для создания задачи.
     4. Возвращаем созданную задачу в формате TaskRead.
     """
-    return create_task(db, data, current_user)
+    return await create_task(db, data, current_user)
 
 
 @router.get("", response_model=list[TaskRead])

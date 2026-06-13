@@ -35,12 +35,8 @@ class UserCreate(BaseModel):
     @field_validator("login")
     @classmethod
     def validate_login(cls, v: str) -> str:
-        if len(v) < 3:
-            raise ValueError("Логин слишком короткий")
-        if " " in v:
-            raise ValueError("Логин не может содержать пробелы")
-        if not re.match(r"^[a-zA-Z0-9_]+$", v):
-            raise ValueError("Логин может содержать только буквы, цифры и знак подчеркивания")
+        if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", v):
+            raise ValueError("Логин должен быть корректным email адресом")
         return v.lower()
 
     @field_validator("password")
