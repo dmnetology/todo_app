@@ -4,8 +4,8 @@ import pytest
 @pytest.mark.parametrize(
     "first_name,last_name,login,password",
     [
-        ("Petr", "Petrov", "petr", "password123"),
-        ("Anna", "Smirnova", "anna", "password456"),
+        ("Petr", "Petrov", "petr@example.com", "Pass_word123!"),
+        ("Anna", "Smirnova", "anna@example.com", "Pass_word456!"),
     ],
 )
 def test_register_user(
@@ -49,8 +49,8 @@ def test_register_duplicate_login(client):
     payload = {
         "first_name": "Petr",
         "last_name": "Petrov",
-        "login": "petr",
-        "password": "password123",
+        "login": "petr@example.com",
+        "password": "Pass_word123!",
     }
 
     client.post("/auth/register", json=payload)
@@ -62,7 +62,7 @@ def test_register_duplicate_login(client):
 @pytest.mark.parametrize(
     "password,expected_status",
     [
-        ("password123", 200),
+        ("Pass_word123!", 200),
         ("wrong_password", 401),
     ],
 )
@@ -83,15 +83,15 @@ def test_login(
         json={
             "first_name": "Anna",
             "last_name": "Smirnova",
-            "login": "anna",
-            "password": "password123",
+            "login": "anna@example.com",
+            "password": "Pass_word123!",
         },
     )
 
     response = client.post(
         "/auth/login",
         json={
-            "login": "anna",
+            "login": "anna@example.com",
             "password": password,
         },
     )
@@ -116,8 +116,8 @@ def test_change_password(client, auth_headers):
         "/auth/change-password",
         headers=auth_headers,
         json={
-            "old_password": "password123",
-            "new_password": "newpassword123",
+            "old_password": "Password123!",
+            "new_password": "New_password123!",
         },
     )
 
@@ -139,16 +139,16 @@ def test_refresh_token(client):
         json={
             "first_name": "Olga",
             "last_name": "Sokolova",
-            "login": "olga",
-            "password": "password123",
+            "login": "olga@example.com",
+            "password": "Pass_word123!",
         },
     )
 
     login_response = client.post(
         "/auth/login",
         json={
-            "login": "olga",
-            "password": "password123",
+            "login": "olga@example.com",
+            "password": "Pass_word123!",
         },
     )
 

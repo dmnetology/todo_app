@@ -85,16 +85,16 @@ def auth_headers(client):
         json={
             "first_name": "Ivan",
             "last_name": "Ivanov",
-            "login": "ivan",
-            "password": "password123",
+            "login": "ivan@example.com",
+            "password": "Password123!",
         },
     )
 
     response = client.post(
         "/auth/login",
         json={
-            "login": "ivan",
-            "password": "password123",
+            "login": "ivan@example.com",
+            "password": "Password123!", 
         },
     )
 

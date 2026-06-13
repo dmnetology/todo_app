@@ -38,7 +38,7 @@ def validate_category_owner(
         )
 
 
-def create_task(db: Session, data: TaskCreate, user: User) -> Task:
+async def create_task(db: Session, data: TaskCreate, user: User) -> Task:
     """
     Создаёт новую задачу для пользователя.
 
@@ -55,9 +55,10 @@ def create_task(db: Session, data: TaskCreate, user: User) -> Task:
     estimated_minutes = data.estimated_minutes
 
     if estimated_minutes is None:
-        estimated_minutes = predict_task_duration(
+        estimated_minutes, _ = await predict_task_duration(
             db=db,
             user_id=user.id,
+            title=data.title,
             category_id=data.category_id,
         )
 

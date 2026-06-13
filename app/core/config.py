@@ -26,4 +26,6 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str | None = None # API ключ к openrouter ai
     DEEPSEEK_MODEL: str | None = None # модель
 
+    YANDEX_DISK_TOKEN: str | None = None # API ключ для доступа к yandex.disk
+
 settings = Settings()
